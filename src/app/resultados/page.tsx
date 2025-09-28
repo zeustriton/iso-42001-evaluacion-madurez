@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,7 +45,8 @@ const maturityLevels = [
   { min: 4.6, max: 5, level: "Óptimo", description: "Implementación completa y documentada", color: "text-green-600" }
 ];
 
-export default function ResultadosPage() {
+// Componente que usa useSearchParams
+function ResultadosContent() {
   const searchParams = useSearchParams();
   const [scores, setScores] = useState<Record<string, number>>({});
   const [overallScore, setOverallScore] = useState(0);
@@ -398,23 +399,22 @@ export default function ResultadosPage() {
             {/* Bar Chart */}
             <Card className="shadow-lg">
               <CardHeader>
-                <CardTitle className="text-xl text-blue-800">Comparación de Puntuaciones</CardTitle>
+                <CardTitle className="text-xl text-blue-800">Puntuaciones por Componente</CardTitle>
                 <CardDescription>
-                  Análisis detallado del desempeño por componente
+                  Comparación de niveles de madurez en cada área
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
                   <Bar 
                     data={{
-                      labels: evaluationSections.map(section => section.title.length > 15 ? section.title.substring(0, 15) + '...' : section.title),
+                      labels: evaluationSections.map(section => section.title),
                       datasets: [{
                         label: 'Puntuación',
                         data: evaluationSections.map(section => scores[section.id] || 0),
                         backgroundColor: evaluationSections.map(section => section.color),
                         borderColor: evaluationSections.map(section => section.color.replace('0.6', '1')),
-                        borderWidth: 1,
-                        borderRadius: 4,
+                        borderWidth: 1
                       }]
                     }}
                     options={{
@@ -423,22 +423,7 @@ export default function ResultadosPage() {
                       scales: {
                         y: {
                           beginAtZero: true,
-                          max: 5,
-                          ticks: {
-                            stepSize: 1
-                          }
-                        }
-                      },
-                      plugins: {
-                        legend: {
-                          display: false
-                        },
-                        tooltip: {
-                          callbacks: {
-                            label: function(context: any) {
-                              return `Puntuación: ${context.parsed.y.toFixed(1)}/5`;
-                            }
-                          }
+                          max: 5
                         }
                       }
                     }}
@@ -450,39 +435,21 @@ export default function ResultadosPage() {
             {/* Doughnut Chart */}
             <Card className="shadow-lg">
               <CardHeader>
-                <CardTitle className="text-xl text-blue-800">Distribución de Madurez</CardTitle>
+                <CardTitle className="text-xl text-blue-800">Distribución de Puntuaciones</CardTitle>
                 <CardDescription>
-                  Clasificación de componentes por nivel de madurez alcanzado
+                  Proporción relativa de las puntuaciones por componente
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="h-80">
                   <Doughnut 
                     data={{
-                      labels: ['Óptimo (4.6-5)', 'Avanzado (3.6-4.5)', 'Intermedio (2.6-3.5)', 'Básico (1.6-2.5)', 'Inicial (0-1.5)'],
+                      labels: evaluationSections.map(section => section.title),
                       datasets: [{
-                        data: [
-                          Object.values(scores).filter(score => score >= 4.6).length,
-                          Object.values(scores).filter(score => score >= 3.6 && score < 4.6).length,
-                          Object.values(scores).filter(score => score >= 2.6 && score < 3.6).length,
-                          Object.values(scores).filter(score => score >= 1.6 && score < 2.6).length,
-                          Object.values(scores).filter(score => score < 1.6).length
-                        ],
-                        backgroundColor: [
-                          'rgba(34, 197, 94, 0.8)',
-                          'rgba(59, 130, 246, 0.8)',
-                          'rgba(251, 191, 36, 0.8)',
-                          'rgba(251, 146, 60, 0.8)',
-                          'rgba(239, 68, 68, 0.8)'
-                        ],
-                        borderColor: [
-                          'rgba(34, 197, 94, 1)',
-                          'rgba(59, 130, 246, 1)',
-                          'rgba(251, 191, 36, 1)',
-                          'rgba(251, 146, 60, 1)',
-                          'rgba(239, 68, 68, 1)'
-                        ],
-                        borderWidth: 2
+                        data: evaluationSections.map(section => scores[section.id] || 0),
+                        backgroundColor: evaluationSections.map(section => section.color),
+                        borderColor: evaluationSections.map(section => section.color.replace('0.6', '1')),
+                        borderWidth: 1
                       }]
                     }}
                     options={{
@@ -490,24 +457,7 @@ export default function ResultadosPage() {
                       maintainAspectRatio: false,
                       plugins: {
                         legend: {
-                          position: 'bottom',
-                          labels: {
-                            padding: 15,
-                            font: {
-                              size: 11
-                            }
-                          }
-                        },
-                        tooltip: {
-                          callbacks: {
-                            label: function(context: any) {
-                              const label = context.label || '';
-                              const value = context.parsed || 0;
-                              const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-                              const percentage = ((value / total) * 100).toFixed(1);
-                              return `${label}: ${value} componentes (${percentage}%)`;
-                            }
-                          }
+                          position: 'right'
                         }
                       }
                     }}
@@ -522,28 +472,32 @@ export default function ResultadosPage() {
             <CardHeader>
               <CardTitle className="text-xl text-blue-800">Puntuaciones Detalladas</CardTitle>
               <CardDescription>
-                Desglose de puntuaciones por cada componente de la norma
+                Desglose detallado de las puntuaciones por cada componente
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                {evaluationSections.map((section) => {
+              <div className="space-y-4">
+                {evaluationSections.map(section => {
                   const score = scores[section.id] || 0;
-                  const level = maturityLevels.find(l => score >= l.min && score <= l.max) || maturityLevels[0];
-                  
+                  const level = maturityLevels.find(level => score >= level.min && score <= level.max);
                   return (
-                    <div key={section.id} className="p-4 border border-gray-200 rounded-lg">
+                    <div key={section.id} className="border-l-4 pl-4" style={{ borderLeftColor: section.color.replace('0.6', '1') }}>
                       <div className="flex justify-between items-center mb-2">
                         <h3 className="font-semibold text-gray-800">{section.title}</h3>
                         <div className="flex items-center gap-2">
                           <span className="text-lg font-bold">{score.toFixed(1)}/5</span>
-                          <span className={`text-sm font-semibold ${level.color}`}>{level.level}</span>
+                          <span className={`px-2 py-1 rounded text-sm font-medium ${level?.color.replace('text', 'bg').replace('600', '100')}`}>
+                            {level?.level}
+                          </span>
                         </div>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{ width: `${(score / 5) * 100}%` }}
+                      <div className="w-full bg-gray-200 rounded-full h-2.5">
+                        <div 
+                          className="h-2.5 rounded-full" 
+                          style={{ 
+                            width: `${(score / 5) * 100}%`,
+                            backgroundColor: section.color.replace('0.6', '1')
+                          }}
                         ></div>
                       </div>
                     </div>
@@ -556,9 +510,9 @@ export default function ResultadosPage() {
           {/* Recommendations */}
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl text-blue-800">Recomendaciones de Mejora</CardTitle>
+              <CardTitle className="text-xl text-blue-800">Recomendaciones</CardTitle>
               <CardDescription>
-                Acciones sugeridas para mejorar el nivel de madurez en áreas críticas
+                Sugerencias para mejorar el nivel de madurez de su organización
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -567,7 +521,7 @@ export default function ResultadosPage() {
                   {getRecommendations().map((recommendation, index) => (
                     <li key={index} className="flex items-start gap-3">
                       <div className="flex-shrink-0 w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center mt-0.5">
-                        <span className="text-blue-600 text-sm font-semibold">{index + 1}</span>
+                        <span className="text-blue-600 text-sm font-medium">{index + 1}</span>
                       </div>
                       <p className="text-gray-700">{recommendation}</p>
                     </li>
@@ -580,158 +534,90 @@ export default function ResultadosPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">¡Excelente Trabajo!</h3>
-                  <p className="text-gray-700">
-                    Su organización muestra un alto nivel de madurez en todos los componentes de la norma ISO 42001.
-                    Continúe con los procesos de mejora continua para mantener este nivel.
-                  </p>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">¡Excelente nivel de madurez!</h3>
+                  <p className="text-gray-700">Su organización muestra un alto nivel de implementación de los requisitos de la norma ISO 42001.</p>
                 </div>
               )}
             </CardContent>
           </Card>
 
-          {/* Educational Section */}
-          <Card className="shadow-lg bg-gradient-to-r from-blue-50 to-indigo-50">
+          {/* Professional Contact */}
+          <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl text-blue-800">¿Por qué es importante implementar ISO 42001?</CardTitle>
-              <CardDescription className="text-gray-700">
-                Conozca los beneficios estratégicos de adoptar esta norma en su organización
+              <CardTitle className="text-xl text-blue-800">¿Necesita ayuda para implementar ISO 42001?</CardTitle>
+              <CardDescription>
+                Contacte a un experto para guiar a su organización en el proceso de implementación
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="font-semibold text-lg text-gray-800 mb-3">Ventajas Competitivas</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-gray-700">Diferenciación en el mercado con gestión responsable de IA</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-gray-700">Mejor acceso a mercados y clientes exigentes</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-gray-700">Atracción de talento y profesionales especializados</span>
-                    </div>
+              <div className="flex items-center gap-4 p-4 bg-blue-50 rounded-lg">
+                <div className="flex-shrink-0">
+                  <div className="w-16 h-16 bg-blue-200 rounded-full flex items-center justify-center">
+                    <span className="text-blue-800 font-bold text-xl">RP</span>
                   </div>
                 </div>
+                <div className="flex-grow">
+                  <h3 className="font-semibold text-gray-800">Roberto Puyo</h3>
+                  <p className="text-gray-700">Experto en Sistemas de Gestión de IA</p>
+                  <p className="text-sm text-gray-600">Asesoría en implementación de la norma ISO 42001</p>
+                </div>
                 <div>
-                  <h3 className="font-semibold text-lg text-gray-800 mb-3">Beneficios Operativos</h3>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-gray-700">Reducción de riesgos y costos asociados a fallos de IA</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-gray-700">Mayor eficiencia y calidad en proyectos de IA</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-600 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-gray-700">Mejora continua y aprendizaje organizacional</span>
-                    </div>
-                  </div>
+                  <a 
+                    href="https://www.linkedin.com/in/roberto-puyo/" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                  >
+                    Contactar en LinkedIn
+                  </a>
                 </div>
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Action Buttons */}
-        <div className="mt-8 flex justify-center gap-4">
-          <Button
-            onClick={(e) => generatePDF(e)}
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            Exportar a PDF
-          </Button>
-          <Link href="/evaluacion">
-            <Button variant="outline">
-              Realizar Nueva Evaluación
-            </Button>
-          </Link>
-        </div>
-
-        {/* Professional Contact Section */}
-        <Card className="mt-8 shadow-lg border-blue-200">
-          <CardHeader className="bg-blue-50">
-            <CardTitle className="text-xl text-blue-800">¿Necesita Ayuda Profesional?</CardTitle>
-            <CardDescription className="text-gray-700">
-              Expertos en implementación de sistemas de gestión de IA según ISO 42001
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="font-semibold text-lg text-gray-800 mb-3">Servicios Profesionales</h3>
-                <ul className="space-y-2 text-gray-700">
-                  <li className="flex items-start gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Implementación de ISO 42001
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Diagnóstico y evaluación de madurez
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Capacitación en gestión de IA
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Consultoría en ética y gobernanza de IA
-                  </li>
-                </ul>
-              </div>
-              <div className="text-center">
-                <div className="mb-4">
-                  <img
-                    src="https://media.licdn.com/dms/image/D4D03AQFv6X6X6X6X6X/profile-displayphoto-shrink_200_200/0/1666666666666?e=2147483647&v=beta&t=abc123"
-                    alt="Roberto Puyo"
-                    className="w-24 h-24 rounded-full mx-auto mb-3 border-4 border-blue-200"
-                  />
-                </div>
-                <h3 className="font-semibold text-lg text-gray-800 mb-2">Roberto Puyo</h3>
-                <p className="text-gray-600 mb-4">Experto en Sistemas de Gestión de IA</p>
-                <Button
-                  onClick={() => window.open('https://www.linkedin.com/in/robertopuyo/', '_blank')}
-                  className="bg-blue-700 hover:bg-blue-800 text-white w-full"
+          {/* Export Options */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-xl text-blue-800">Exportar Resultados</CardTitle>
+              <CardDescription>
+                Descargue sus resultados en diferentes formatos para compartir con su equipo
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-4">
+                <Button 
+                  onClick={(e) => generatePDF(e)}
+                  className="bg-red-600 hover:bg-red-700 text-white"
                 >
-                  <svg className="w-5 h-5 mr-2 inline" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
-                  </svg>
-                  Contactar en LinkedIn
+                  Descargar PDF
                 </Button>
-                <p className="text-sm text-gray-600 mt-3">
-                  Para consultas sobre la norma ISO 42001 o implementación en su organización
-                </p>
+                <Button variant="outline">
+                  Compartir por Email
+                </Button>
+                <Button variant="outline">
+                  Imprimir Resultados
+                </Button>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
+  );
+}
+
+// Componente principal con Suspense
+export default function ResultadosPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-700">Cargando resultados...</p>
+        </div>
+      </div>
+    }>
+      <ResultadosContent />
+    </Suspense>
   );
 }
